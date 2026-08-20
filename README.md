@@ -1,6 +1,6 @@
 # Pinbox
 
-书签管理工具（Raindrop.io 复刻 MVP），遵循 **MAX 软件研发协议** 开发。
+书签管理工具（MVP），遵循 **MAX 软件研发协议** 开发。
 
 > 任何代码修改都必须属于一个 GitHub Issue，并走 Issue → Project → 开发 → 测试 → Commit/PR → Done。
 > 协议四层：Skill 引导 → Repo Config 定义 → GitHub 记录 → CI 验证 → GitHub Rules 强制。
