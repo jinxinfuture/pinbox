@@ -128,9 +128,26 @@
       const $ = (id) => document.getElementById(id)
       let listData = []
       let editingId = null
+      let token = localStorage.getItem('pinboxToken') || ''
+
+      // 统一 API 封装：自动附带 Bearer token；401 时提示输入口令后重试一次
+      async function api(path, opts = {}) {
+        const headers = Object.assign({}, opts.headers || {})
+        if (token) headers['Authorization'] = 'Bearer ' + token
+        const res = await fetch(path, Object.assign({}, opts, { headers }))
+        if (res.status === 401) {
+          const t = prompt('该服务已开启访问口令（PINBOX_TOKEN），请输入口令：')
+          if (t) {
+            token = t
+            localStorage.setItem('pinboxToken', t)
+            return api(path, opts)
+          }
+        }
+        return res
+      }
 
       async function loadCollections() {
-        const res = await fetch('/api/collections')
+        const res = await api('/api/collections')
         const cols = await res.json()
         const opts = '<option value="">（无集合）</option>' +
           cols.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
@@ -140,7 +157,7 @@
       }
 
       async function loadTags() {
-        const res = await fetch('/api/tags')
+        const res = await api('/api/tags')
         const tags = await res.json()
         $('filterTag').innerHTML = '<option value="">全部标签</option>' +
           tags.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')
@@ -207,7 +224,7 @@
       }
 
       async function loadBookmarks() {
-        const res = await fetch('/api/bookmarks')
+        const res = await api('/api/bookmarks')
         render(await res.json())
       }
 
@@ -224,7 +241,7 @@
       }
 
       async function applyFilters() {
-        const res = await fetch(buildQuery())
+        const res = await api(buildQuery())
         render(await res.json())
       }
 
@@ -247,7 +264,7 @@
         }
         const method = editingId ? 'PUT' : 'POST'
         const url = editingId ? '/api/bookmarks/' + editingId : '/api/bookmarks'
-        await fetch(url, {
+        await api(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -259,7 +276,7 @@
       $('addCollection').addEventListener('click', async () => {
         const name = $('newCollection').value.trim()
         if (!name) return
-        await fetch('/api/collections', {
+        await api('/api/collections', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
@@ -289,7 +306,7 @@
       $('cancelEdit').addEventListener('click', cancelEdit)
 
       $('exportBtn').addEventListener('click', async () => {
-        const res = await fetch('/api/export')
+        const res = await api('/api/export')
         const data = await res.json()
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
         const a = document.createElement('a')
@@ -305,7 +322,7 @@
         if (!file) return
         try {
           const data = JSON.parse(await file.text())
-          const res = await fetch('/api/import', {
+          const res = await api('/api/import', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -325,7 +342,7 @@
         if (!file) return
         try {
           const html = await file.text()
-          const res = await fetch('/api/import/html', {
+          const res = await api('/api/import/html', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ html }),
