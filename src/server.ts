@@ -42,6 +42,10 @@ app.get('/api/collections', (_req, res) => {
   res.json(store.listCollections())
 })
 
+app.get('/api/tags', (_req, res) => {
+  res.json(store.listTags())
+})
+
 app.post('/api/tags', (req, res) => {
   const t = store.addTag(req.body.name)
   res.status(201).json(t)

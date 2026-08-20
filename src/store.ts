@@ -7,6 +7,8 @@ export interface Bookmark {
   title: string
   description: string
   created_at: string
+  tags?: string[]
+  collections?: string[]
 }
 export interface Collection {
   id: number
@@ -47,6 +49,22 @@ export function createStore(db: Database.Database) {
   const stmtLinkCollection = db.prepare(
     'INSERT OR IGNORE INTO bookmark_collections (bookmark_id, collection_id) VALUES (?, ?)',
   )
+  const stmtTagsForBookmark = db.prepare(
+    'SELECT t.name FROM tags t JOIN bookmark_tags bt ON bt.tag_id = t.id WHERE bt.bookmark_id = ? ORDER BY t.name',
+  )
+  const stmtColsForBookmark = db.prepare(
+    'SELECT c.name FROM collections c JOIN bookmark_collections bc ON bc.collection_id = c.id WHERE bc.bookmark_id = ? ORDER BY c.name',
+  )
+  const stmtListTags = db.prepare('SELECT name FROM tags ORDER BY name')
+
+  function withMeta(b: Bookmark | undefined): Bookmark | undefined {
+    if (!b) return b
+    return {
+      ...b,
+      tags: (stmtTagsForBookmark.all(b.id) as { name: string }[]).map((r) => r.name),
+      collections: (stmtColsForBookmark.all(b.id) as { name: string }[]).map((r) => r.name),
+    }
+  }
 
   return {
     addBookmark(input: AddBookmarkInput): Bookmark {
@@ -59,15 +77,19 @@ export function createStore(db: Database.Database) {
         stmtLinkTag.run(id, tag.id)
       }
       for (const c of input.collections ?? []) stmtLinkCollection.run(id, c)
-      return stmtGetBookmark.get(id) as Bookmark
+      return withMeta(stmtGetBookmark.get(id) as Bookmark) as Bookmark
     },
 
     getBookmark(id: number): Bookmark | undefined {
-      return stmtGetBookmark.get(id) as Bookmark | undefined
+      return withMeta(stmtGetBookmark.get(id) as Bookmark | undefined)
     },
 
     listBookmarks(): Bookmark[] {
-      return stmtListBookmarks.all() as Bookmark[]
+      return (stmtListBookmarks.all() as Bookmark[]).map((b) => withMeta(b) as Bookmark)
+    },
+
+    listTags(): string[] {
+      return (stmtListTags.all() as { name: string }[]).map((r) => r.name)
     },
 
     deleteBookmark(id: number): boolean {
@@ -109,7 +131,7 @@ export function createStore(db: Database.Database) {
       }
       if (where.length) sql += ' WHERE ' + where.join(' AND ')
       sql += ' ORDER BY b.created_at DESC'
-      return db.prepare(sql).all(...params) as Bookmark[]
+      return (db.prepare(sql).all(...params) as Bookmark[]).map((b) => withMeta(b) as Bookmark)
     },
   }
 }
