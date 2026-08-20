@@ -36,6 +36,40 @@ export interface UpdateBookmarkInput {
   collections?: number[]
 }
 
+export interface ExportBookmark {
+  id: number
+  url: string
+  title: string
+  description: string
+  created_at: string
+  tags: string[]
+  collections: string[]
+}
+export interface ExportData {
+  version: number
+  bookmarks: ExportBookmark[]
+  collections: Collection[]
+  tags: string[]
+}
+export interface ImportBookmark {
+  url: string
+  title?: string
+  description?: string
+  tags?: string[]
+  collections?: string[]
+}
+export interface ImportCollection {
+  id: number
+  name: string
+  parent_id: number | null
+}
+export interface ImportData {
+  version?: number
+  bookmarks?: ImportBookmark[]
+  collections?: ImportCollection[]
+  tags?: string[]
+}
+
 export function createStore(db: Database.Database) {
   const stmtAddBookmark = db.prepare(
     'INSERT INTO bookmarks (url, title, description) VALUES (?, ?, ?)',
@@ -70,6 +104,10 @@ export function createStore(db: Database.Database) {
   const stmtDeleteBookmarkTags = db.prepare('DELETE FROM bookmark_tags WHERE bookmark_id = ?')
   const stmtDeleteBookmarkCols = db.prepare(
     'DELETE FROM bookmark_collections WHERE bookmark_id = ?',
+  )
+  const stmtGetCollectionByName = db.prepare('SELECT * FROM collections WHERE name = ?')
+  const stmtUpdateCollectionParent = db.prepare(
+    'UPDATE collections SET parent_id = ? WHERE id = ?',
   )
 
   function withMeta(b: Bookmark | undefined): Bookmark | undefined {
@@ -146,6 +184,69 @@ export function createStore(db: Database.Database) {
         for (const c of input.collections) stmtLinkCollection.run(id, c)
       }
       return withMeta(stmtGetBookmark.get(id) as Bookmark) as Bookmark
+    },
+
+    exportData(): ExportData {
+      const collections = stmtListCollections.all() as Collection[]
+      const tags = (stmtListTags.all() as { name: string }[]).map((r) => r.name)
+      const bookmarks = (stmtListBookmarks.all() as Bookmark[]).map((b) => {
+        const full = withMeta(b) as Bookmark
+        return {
+          id: full.id,
+          url: full.url,
+          title: full.title,
+          description: full.description,
+          created_at: full.created_at,
+          tags: full.tags ?? [],
+          collections: full.collections ?? [],
+        }
+      })
+      return { version: 1, bookmarks, collections, tags }
+    },
+
+    importData(data: ImportData): { imported: number } {
+      const existingUrls = new Set((stmtListBookmarks.all() as Bookmark[]).map((b) => b.url))
+      const tagNameToId = new Map<string, number>()
+      for (const t of data.tags ?? []) {
+        stmtInsertTag.run(t)
+        tagNameToId.set(t, (stmtGetTagByName.get(t) as Tag).id)
+      }
+      const oldToNewCol = new Map<number, number>()
+      const colNameToId = new Map<string, number>()
+      for (const c of data.collections ?? []) {
+        const existing = stmtGetCollectionByName.get(c.name) as Collection | undefined
+        let newId: number
+        if (existing) {
+          newId = existing.id
+        } else {
+          const info = stmtInsertCollection.run(c.name, null)
+          newId = Number(info.lastInsertRowid)
+        }
+        oldToNewCol.set(c.id, newId)
+        colNameToId.set(c.name, newId)
+      }
+      for (const c of data.collections ?? []) {
+        if (c.parent_id != null && oldToNewCol.has(c.parent_id)) {
+          stmtUpdateCollectionParent.run(oldToNewCol.get(c.parent_id), oldToNewCol.get(c.id))
+        }
+      }
+      let imported = 0
+      for (const b of data.bookmarks ?? []) {
+        const url = normalizeUrl(b.url)
+        if (existingUrls.has(url)) continue
+        const info = stmtAddBookmark.run(url, b.title ?? '', b.description ?? '')
+        const id = Number(info.lastInsertRowid)
+        for (const t of b.tags ?? []) {
+          const tid = tagNameToId.get(t)
+          if (tid != null) stmtLinkTag.run(id, tid)
+        }
+        for (const c of b.collections ?? []) {
+          const cid = colNameToId.get(c)
+          if (cid != null) stmtLinkCollection.run(id, cid)
+        }
+        imported++
+      }
+      return { imported }
     },
 
     searchBookmarks(opts: { text?: string; tag?: string; collection?: string } = {}): Bookmark[] {

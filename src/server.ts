@@ -66,6 +66,23 @@ app.get('/api/search', (req, res) => {
   )
 })
 
+app.get('/api/export', (_req, res) => {
+  res.json(store.exportData())
+})
+
+app.post('/api/import', (req, res) => {
+  try {
+    const data = req.body
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ error: 'invalid payload' })
+    }
+    const result = store.importData(data)
+    res.json(result)
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'import failed' })
+  }
+})
+
 const port = Number(process.env.PORT) || 3000
 if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
