@@ -1,4 +1,4 @@
-# Layer 3 机器强制之一：CI 跑测试。job 名必须是 "ci"（匹配分支保护 contexts）
+# Layer 3 机器强制之一：CI 跑测试 + 类型检查。job 名必须是 "ci"（匹配分支保护 contexts）
 name: ci
 on:
   push:
@@ -13,4 +13,5 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
+      - run: npm run build   # TypeScript 类型检查（tsc --noEmit 等价）
       - run: npm test

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinbox · 书签管理</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #1a1d24;
+        --fg: #e6e8ec;
+        --muted: #8b90a0;
+        --accent: #4f8cff;
+        --border: #2a2e38;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+      }
+      header {
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+      header h1 { font-size: 20px; margin: 0; }
+      header span { color: var(--muted); font-size: 13px; }
+      main { max-width: 860px; margin: 0 auto; padding: 24px; }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 18px;
+      }
+      input, select, button {
+        font: inherit;
+        padding: 9px 11px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #11141a;
+        color: var(--fg);
+      }
+      input:focus, select:focus { outline: 2px solid var(--accent); }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .row > * { flex: 1; min-width: 120px; }
+      button {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        cursor: pointer;
+        flex: 0 0 auto;
+      }
+      button:hover { filter: brightness(1.08); }
+      #search { width: 100%; }
+      .bookmark {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        background: #14171d;
+      }
+      .bookmark a { color: var(--accent); text-decoration: none; font-weight: 600; word-break: break-all; }
+      .bookmark .title { font-weight: 600; margin-left: 8px; }
+      .bookmark .desc { color: var(--muted); font-size: 13px; margin: 6px 0; }
+      .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+      .chip {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #232838;
+        color: var(--muted);
+      }
+      .empty { color: var(--muted); text-align: center; padding: 30px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Pinbox</h1>
+      <span>书签管理 · Raindrop.io 复刻 MVP</span>
+    </header>
+    <main>
+      <section class="panel">
+        <form id="addForm" class="row">
+          <input id="url" placeholder="URL（必填）" required />
+          <input id="title" placeholder="标题" />
+          <input id="desc" placeholder="描述" />
+          <input id="tags" placeholder="标签，逗号分隔" />
+          <select id="collection"></select>
+          <button type="submit">保存书签</button>
+        </form>
+        <div class="row" style="margin-top: 8px">
+          <input id="newCollection" placeholder="新建集合名" />
+          <button type="button" id="addCollection">+ 新建集合</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <input id="search" placeholder="搜索书签（标题 / URL / 描述）…" />
+      </section>
+
+      <section id="list"></section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id)
+
+      async function loadCollections() {
+        const res = await fetch('/api/collections')
+        const cols = await res.json()
+        const sel = $('collection')
+        sel.innerHTML = '<option value="">（无集合）</option>' +
+          cols.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+      }
+
+      async function render(list) {
+        const el = $('list')
+        if (!list.length) {
+          el.innerHTML = '<div class="empty">还没有书签，添加第一个吧。</div>'
+          return
+        }
+        el.innerHTML = list
+          .map(
+            (b) => `
+          <div class="bookmark">
+            <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener">${escapeHtml(b.url)}</a>
+            <span class="title">${escapeHtml(b.title || '')}</span>
+            ${b.description ? `<div class="desc">${escapeHtml(b.description)}</div>` : ''}
+          </div>`,
+          )
+          .join('')
+      }
+
+      async function loadBookmarks() {
+        const res = await fetch('/api/bookmarks')
+        render(await res.json())
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
+        )
+      }
+
+      $('addForm').addEventListener('submit', async (e) => {
+        e.preventDefault()
+        const tags = $('tags').value.split(',').map((t) => t.trim()).filter(Boolean)
+        const collection = $('collection').value
+        const body = {
+          url: $('url').value,
+          title: $('title').value,
+          description: $('desc').value,
+          tags,
+          collections: collection ? [Number(collection)] : [],
+        }
+        await fetch('/api/bookmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        e.target.reset()
+        await loadBookmarks()
+      })
+
+      $('addCollection').addEventListener('click', async () => {
+        const name = $('newCollection').value.trim()
+        if (!name) return
+        await fetch('/api/collections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        })
+        $('newCollection').value = ''
+        await loadCollections()
+      })
+
+      let timer
+      $('search').addEventListener('input', (e) => {
+        clearTimeout(timer)
+        const q = e.target.value.trim()
+        timer = setTimeout(async () => {
+          if (!q) return loadBookmarks()
+          const res = await fetch('/api/search?text=' + encodeURIComponent(q))
+          render(await res.json())
+        }, 250)
+      })
+
+      loadCollections()
+      loadBookmarks()
+    </script>
+  </body>
+</html>
