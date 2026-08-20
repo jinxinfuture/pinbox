@@ -234,6 +234,7 @@ export function createStore(db: Database.Database) {
       for (const b of data.bookmarks ?? []) {
         const url = normalizeUrl(b.url)
         if (existingUrls.has(url)) continue
+        existingUrls.add(url)
         const info = stmtAddBookmark.run(url, b.title ?? '', b.description ?? '')
         const id = Number(info.lastInsertRowid)
         for (const t of b.tags ?? []) {

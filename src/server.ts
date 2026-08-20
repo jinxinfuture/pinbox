@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { openDb } from './db'
 import { createStore } from './store'
+import { parseBookmarksHtml } from './parseBookmarksHtml'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -78,6 +79,20 @@ app.post('/api/import', (req, res) => {
     }
     const result = store.importData(data)
     res.json(result)
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : 'import failed' })
+  }
+})
+
+app.post('/api/import/html', (req, res) => {
+  const html = req.body?.html
+  if (typeof html !== 'string' || !html.trim()) {
+    return res.status(400).json({ error: 'html required' })
+  }
+  try {
+    const { data, parsedBookmarks } = parseBookmarksHtml(html)
+    const result = store.importData(data)
+    res.json({ imported: result.imported, skipped: parsedBookmarks - result.imported })
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : 'import failed' })
   }
