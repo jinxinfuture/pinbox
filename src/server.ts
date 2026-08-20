@@ -33,6 +33,11 @@ app.delete('/api/bookmarks/:id', (req, res) => {
   const ok = store.deleteBookmark(Number(req.params.id))
   res.status(ok ? 204 : 404).end()
 })
+app.put('/api/bookmarks/:id', (req, res) => {
+  const b = store.updateBookmark(Number(req.params.id), req.body)
+  if (!b) return res.status(404).json({ error: 'not found' })
+  res.json(b)
+})
 
 app.post('/api/collections', (req, res) => {
   const c = store.createCollection(req.body.name, req.body.parent_id ?? null)

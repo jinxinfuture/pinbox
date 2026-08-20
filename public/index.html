@@ -77,6 +77,8 @@
       }
       .chip-tag { background: #233044; color: #9ec5ff; }
       .chip-col { background: #2a2338; color: #d3b4ff; }
+      .bookmark .edit-btn { margin-left: 8px; font-size: 12px; padding: 2px 8px; background: #2a2e38; border-color: #2a2e38; color: var(--muted); }
+      .cancel-btn { background: #2a2e38; border-color: #2a2e38; color: var(--fg); }
       .empty { color: var(--muted); text-align: center; padding: 30px; }
     </style>
   </head>
@@ -93,7 +95,8 @@
           <input id="desc" placeholder="描述" />
           <input id="tags" placeholder="标签，逗号分隔" />
           <select id="collection"></select>
-          <button type="submit">保存书签</button>
+          <button type="submit" id="submitBtn">保存书签</button>
+          <button type="button" id="cancelEdit" class="cancel-btn" style="display:none">取消</button>
         </form>
         <div class="row" style="margin-top: 8px">
           <input id="newCollection" placeholder="新建集合名" />
@@ -115,6 +118,8 @@
 
     <script>
       const $ = (id) => document.getElementById(id)
+      let listData = []
+      let editingId = null
 
       async function loadCollections() {
         const res = await fetch('/api/collections')
@@ -141,6 +146,7 @@
       }
 
       async function render(list) {
+        listData = list
         const el = $('list')
         if (!list.length) {
           el.innerHTML = '<div class="empty">还没有书签，添加第一个吧。</div>'
@@ -152,12 +158,44 @@
           <div class="bookmark">
             <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener">${escapeHtml(b.url)}</a>
             <span class="title">${escapeHtml(b.title || '')}</span>
+            <button class="edit-btn" data-id="${b.id}">编辑</button>
             ${b.description ? `<div class="desc">${escapeHtml(b.description)}</div>` : ''}
             ${chips(b.tags, 'chip-tag')}
             ${chips(b.collections, 'chip-col')}
           </div>`,
           )
           .join('')
+      }
+
+      function selectCollectionByName(name) {
+        const sel = $('collection')
+        sel.value = ''
+        if (!name) return
+        for (const opt of sel.options) {
+          if (opt.textContent === name) { sel.value = opt.value; return }
+        }
+      }
+
+      function startEdit(id) {
+        const b = listData.find((x) => x.id === id)
+        if (!b) return
+        editingId = id
+        $('url').value = b.url
+        $('title').value = b.title || ''
+        $('desc').value = b.description || ''
+        $('tags').value = (b.tags || []).join(', ')
+        selectCollectionByName((b.collections || [])[0] || '')
+        $('submitBtn').textContent = '更新书签'
+        $('cancelEdit').style.display = ''
+        $('url').focus()
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+
+      function cancelEdit() {
+        editingId = null
+        $('addForm').reset()
+        $('submitBtn').textContent = '保存书签'
+        $('cancelEdit').style.display = 'none'
       }
 
       async function loadBookmarks() {
@@ -199,12 +237,14 @@
           tags,
           collections: collection ? [Number(collection)] : [],
         }
-        await fetch('/api/bookmarks', {
-          method: 'POST',
+        const method = editingId ? 'PUT' : 'POST'
+        const url = editingId ? '/api/bookmarks/' + editingId : '/api/bookmarks'
+        await fetch(url, {
+          method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         })
-        e.target.reset()
+        cancelEdit()
         await loadBookmarks()
       })
 
@@ -233,6 +273,12 @@
         $('filterCollection').value = ''
         loadBookmarks()
       })
+
+      $('list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.edit-btn')
+        if (btn) startEdit(Number(btn.dataset.id))
+      })
+      $('cancelEdit').addEventListener('click', cancelEdit)
 
       loadCollections()
       loadTags()

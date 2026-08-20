@@ -28,6 +28,14 @@ export interface AddBookmarkInput {
   collections?: number[]
 }
 
+export interface UpdateBookmarkInput {
+  url?: string
+  title?: string
+  description?: string
+  tags?: string[]
+  collections?: number[]
+}
+
 export function createStore(db: Database.Database) {
   const stmtAddBookmark = db.prepare(
     'INSERT INTO bookmarks (url, title, description) VALUES (?, ?, ?)',
@@ -56,6 +64,13 @@ export function createStore(db: Database.Database) {
     'SELECT c.name FROM collections c JOIN bookmark_collections bc ON bc.collection_id = c.id WHERE bc.bookmark_id = ? ORDER BY c.name',
   )
   const stmtListTags = db.prepare('SELECT name FROM tags ORDER BY name')
+  const stmtUpdateBookmark = db.prepare(
+    'UPDATE bookmarks SET url = ?, title = ?, description = ? WHERE id = ?',
+  )
+  const stmtDeleteBookmarkTags = db.prepare('DELETE FROM bookmark_tags WHERE bookmark_id = ?')
+  const stmtDeleteBookmarkCols = db.prepare(
+    'DELETE FROM bookmark_collections WHERE bookmark_id = ?',
+  )
 
   function withMeta(b: Bookmark | undefined): Bookmark | undefined {
     if (!b) return b
@@ -108,6 +123,29 @@ export function createStore(db: Database.Database) {
     addTag(name: string): Tag {
       stmtInsertTag.run(name)
       return stmtGetTagByName.get(name) as Tag
+    },
+
+    updateBookmark(id: number, input: UpdateBookmarkInput): Bookmark | undefined {
+      const existing = stmtGetBookmark.get(id) as Bookmark | undefined
+      if (!existing) return undefined
+      const url = input.url !== undefined ? normalizeUrl(input.url) : existing.url
+      const title = input.title !== undefined ? input.title : existing.title
+      const description =
+        input.description !== undefined ? input.description : existing.description
+      stmtUpdateBookmark.run(url, title, description, id)
+      if (input.tags !== undefined) {
+        stmtDeleteBookmarkTags.run(id)
+        for (const t of input.tags) {
+          stmtInsertTag.run(t)
+          const tag = stmtGetTagByName.get(t) as Tag
+          stmtLinkTag.run(id, tag.id)
+        }
+      }
+      if (input.collections !== undefined) {
+        stmtDeleteBookmarkCols.run(id)
+        for (const c of input.collections) stmtLinkCollection.run(id, c)
+      }
+      return withMeta(stmtGetBookmark.get(id) as Bookmark) as Bookmark
     },
 
     searchBookmarks(opts: { text?: string; tag?: string; collection?: string } = {}): Bookmark[] {
