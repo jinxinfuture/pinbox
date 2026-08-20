@@ -53,6 +53,13 @@ export function createApp(options: { token?: string; dbPath?: string } = {}): ex
     const ok = store.deleteBookmark(Number(req.params.id))
     res.status(ok ? 204 : 404).end()
   })
+  app.post('/api/bookmarks/batch-delete', (req, res) => {
+    const ids = req.body?.ids
+    if (!Array.isArray(ids) || ids.some((x) => typeof x !== 'number')) {
+      return res.status(400).json({ error: 'ids must be a number array' })
+    }
+    res.json({ deleted: store.deleteBookmarks(ids) })
+  })
   app.put('/api/bookmarks/:id', (req, res) => {
     const b = store.updateBookmark(Number(req.params.id), req.body)
     if (!b) return res.status(404).json({ error: 'not found' })
