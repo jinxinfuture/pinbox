@@ -39,6 +39,39 @@ describe('tags', () => {
     expect(store.searchBookmarks({ tag: 'read' })).toHaveLength(1)
     expect(store.searchBookmarks({ tag: 'later' })).toHaveLength(1)
   })
+
+  it('listTags 返回所有已用标签', () => {
+    store.addBookmark({ url: 'a.com', tags: ['x', 'y'] })
+    store.addBookmark({ url: 'b.com', tags: ['y', 'z'] })
+    expect(store.listTags().sort()).toEqual(['x', 'y', 'z'])
+  })
+})
+
+describe('metadata 随书签返回', () => {
+  it('listBookmarks 带 tags 与 collections', () => {
+    const c = store.createCollection('Fav')
+    const b = store.addBookmark({ url: 'm.com', tags: ['go'], collections: [c.id] })
+    const list = store.listBookmarks()
+    expect(list).toHaveLength(1)
+    expect(list[0].tags).toEqual(['go'])
+    expect(list[0].collections).toEqual(['Fav'])
+    expect(b.tags).toEqual(['go'])
+    expect(b.collections).toEqual(['Fav'])
+  })
+
+  it('getBookmark 带 tags 与 collections', () => {
+    store.addBookmark({ url: 'n.com', tags: ['t1'] })
+    const got = store.getBookmark(1)
+    expect(got?.tags).toEqual(['t1'])
+    expect(got?.collections).toEqual([])
+  })
+
+  it('searchBookmarks 返回结果带 tags', () => {
+    store.addBookmark({ url: 's.com', title: 'S', tags: ['hot'] })
+    const r = store.searchBookmarks({ text: 'S' })
+    expect(r).toHaveLength(1)
+    expect(r[0].tags).toEqual(['hot'])
+  })
 })
 
 describe('search', () => {

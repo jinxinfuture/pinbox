@@ -75,6 +75,8 @@
         background: #232838;
         color: var(--muted);
       }
+      .chip-tag { background: #233044; color: #9ec5ff; }
+      .chip-col { background: #2a2338; color: #d3b4ff; }
       .empty { color: var(--muted); text-align: center; padding: 30px; }
     </style>
   </head>
@@ -101,6 +103,11 @@
 
       <section class="panel">
         <input id="search" placeholder="搜索书签（标题 / URL / 描述）…" />
+        <div class="row" style="margin-top: 10px">
+          <select id="filterTag"><option value="">全部标签</option></select>
+          <select id="filterCollection"><option value="">全部集合</option></select>
+          <button type="button" id="clearFilters" style="background:#2a2e38;border-color:#2a2e38;color:var(--fg)">清空筛选</button>
+        </div>
       </section>
 
       <section id="list"></section>
@@ -112,9 +119,25 @@
       async function loadCollections() {
         const res = await fetch('/api/collections')
         const cols = await res.json()
-        const sel = $('collection')
-        sel.innerHTML = '<option value="">（无集合）</option>' +
+        const opts = '<option value="">（无集合）</option>' +
           cols.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+        $('collection').innerHTML = opts
+        $('filterCollection').innerHTML = '<option value="">全部集合</option>' +
+          cols.map((c) => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('')
+      }
+
+      async function loadTags() {
+        const res = await fetch('/api/tags')
+        const tags = await res.json()
+        $('filterTag').innerHTML = '<option value="">全部标签</option>' +
+          tags.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')
+      }
+
+      function chips(arr, cls) {
+        if (!arr || !arr.length) return ''
+        return '<div class="chips">' +
+          arr.map((x) => `<span class="chip ${cls}">${escapeHtml(x)}</span>`).join('') +
+          '</div>'
       }
 
       async function render(list) {
@@ -130,6 +153,8 @@
             <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener">${escapeHtml(b.url)}</a>
             <span class="title">${escapeHtml(b.title || '')}</span>
             ${b.description ? `<div class="desc">${escapeHtml(b.description)}</div>` : ''}
+            ${chips(b.tags, 'chip-tag')}
+            ${chips(b.collections, 'chip-col')}
           </div>`,
           )
           .join('')
@@ -137,6 +162,23 @@
 
       async function loadBookmarks() {
         const res = await fetch('/api/bookmarks')
+        render(await res.json())
+      }
+
+      function buildQuery() {
+        const q = new URLSearchParams()
+        const text = $('search').value.trim()
+        const tag = $('filterTag').value
+        const col = $('filterCollection').value
+        if (text) q.set('text', text)
+        if (tag) q.set('tag', tag)
+        if (col) q.set('collection', col)
+        const s = q.toString()
+        return s ? '/api/search?' + s : '/api/bookmarks'
+      }
+
+      async function applyFilters() {
+        const res = await fetch(buildQuery())
         render(await res.json())
       }
 
@@ -179,17 +221,21 @@
       })
 
       let timer
-      $('search').addEventListener('input', (e) => {
+      $('search').addEventListener('input', () => {
         clearTimeout(timer)
-        const q = e.target.value.trim()
-        timer = setTimeout(async () => {
-          if (!q) return loadBookmarks()
-          const res = await fetch('/api/search?text=' + encodeURIComponent(q))
-          render(await res.json())
-        }, 250)
+        timer = setTimeout(applyFilters, 250)
+      })
+      $('filterTag').addEventListener('change', applyFilters)
+      $('filterCollection').addEventListener('change', applyFilters)
+      $('clearFilters').addEventListener('click', () => {
+        $('search').value = ''
+        $('filterTag').value = ''
+        $('filterCollection').value = ''
+        loadBookmarks()
       })
 
       loadCollections()
+      loadTags()
       loadBookmarks()
     </script>
   </body>
