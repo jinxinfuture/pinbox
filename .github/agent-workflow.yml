@@ -1,0 +1,27 @@
+# MAX 软件研发协议 · 仓库级规则（Layer 2: Repo Config）
+# Agent 进入本仓库第一件事就是读这个文件，而不是凭记忆。
+workflow:
+  issue_required: true            # 任何代码修改必须属于 Issue
+  project_required: true          # 必须有 Project card
+  commit_issue_required: true     # commit message 必须关联 Issue
+  pr_required: true               # 禁止直推 main，必须 PR
+  ci_required: true               # PR 必须过 CI
+statuses:                         # Project 看板列
+  - Todo
+  - In Progress
+  - Review
+  - Testing
+  - Done
+repository_mode: multi-repo      # mono-repo | multi-repo
+branch:
+  default: main
+  # 注意：git 分支名不允许含 '#'，故用 feat/N-slug（N 为 Issue 号）
+  strategy: "feat/N-short-slug"
+commit:
+  in_progress: "refs #N"          # 进行中引用
+  done: "fixes #N"                # 完成引用（GitHub 自动关 issue）
+pr:
+  body_must_reference_issue: true # PR 描述必须引用 Issue
+project:
+  title: Pinbox
+  owner: jinxinfuture

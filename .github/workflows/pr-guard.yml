@@ -1,0 +1,21 @@
+# Layer 3 机器强制之二：PR 必须关联 Issue。job 名必须是 "pr-guard"（匹配分支保护 contexts）
+# 没有引用 Issue 的 PR → CI 标红 → 分支保护禁止合并。
+name: pr-guard
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+jobs:
+  pr-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require issue reference in PR body
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if echo "$BODY" | grep -Eqi '(fixes|fixed|close|closes|closed|refs|references|relates to)[ ]+#?[0-9]+'; then
+            echo "PR references an issue. OK."
+            exit 0
+          else
+            echo "::error::PR body must reference an issue (e.g. 'fixes #1'). No issue link = no merge."
+            exit 1
+          fi
