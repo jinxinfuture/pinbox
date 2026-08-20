@@ -121,3 +121,63 @@ describe('updateBookmark', () => {
     expect(store.updateBookmark(999, { title: 'x' })).toBeUndefined()
   })
 })
+
+describe('export/import', () => {
+  it('导出包含书签/集合/标签', () => {
+    const c = store.createCollection('阅读')
+    const b = store.addBookmark({
+      url: 'https://e.com',
+      title: '导出测试',
+      tags: ['go', 'demo'],
+      collections: [c.id],
+    })
+    const data = store.exportData()
+    expect(data.version).toBe(1)
+    expect(data.tags).toEqual(expect.arrayContaining(['go', 'demo']))
+    expect(data.collections.map((x) => x.name)).toContain('阅读')
+    const exported = data.bookmarks.find((x) => x.id === b.id)
+    expect(exported).toBeDefined()
+    expect(exported!.tags).toEqual(expect.arrayContaining(['go', 'demo']))
+    expect(exported!.collections).toContain('阅读')
+  })
+
+  it('导入到空库重建数据', () => {
+    const store2 = createStore(openDb(':memory:'))
+    const result = store2.importData({
+      version: 1,
+      tags: ['go'],
+      collections: [{ id: 1, name: '阅读', parent_id: null }],
+      bookmarks: [
+        {
+          url: 'https://imp.com',
+          title: '导入的',
+          tags: ['go'],
+          collections: ['阅读'],
+        },
+      ],
+    })
+    expect(result.imported).toBe(1)
+    const list = store2.listBookmarks()
+    expect(list).toHaveLength(1)
+    expect(list[0].tags).toContain('go')
+    expect(list[0].collections).toContain('阅读')
+  })
+
+  it('导入重复 URL 自动跳过', () => {
+    store.addBookmark({ url: 'https://dup.com' })
+    const before = store.listBookmarks().length
+    const result = store.importData({
+      bookmarks: [{ url: 'https://dup.com' }, { url: 'https://new.com' }],
+    })
+    expect(result.imported).toBe(1)
+    expect(store.listBookmarks()).toHaveLength(before + 1)
+  })
+
+  it('导出→导入往返后数据一致', () => {
+    const data = store.exportData()
+    const store3 = createStore(openDb(':memory:'))
+    const result = store3.importData(data)
+    expect(result.imported).toBe(store.listBookmarks().length)
+    expect(store3.listBookmarks().length).toBe(store.listBookmarks().length)
+  })
+})
