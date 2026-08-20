@@ -1,9 +1,14 @@
 import express from 'express'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 import { openDb } from './db'
 import { createStore } from './store'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 const app = express()
 app.use(express.json())
+app.use(express.static(join(__dirname, '..', 'public')))
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, name: 'pinbox' })
