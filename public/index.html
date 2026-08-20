@@ -78,6 +78,7 @@
       .chip-tag { background: #233044; color: #9ec5ff; }
       .chip-col { background: #2a2338; color: #d3b4ff; }
       .bookmark .edit-btn { margin-left: 8px; font-size: 12px; padding: 2px 8px; background: #2a2e38; border-color: #2a2e38; color: var(--muted); }
+      .bk-check { width: auto; padding: 0; margin-right: 8px; accent-color: var(--accent); vertical-align: middle; }
       .cancel-btn { background: #2a2e38; border-color: #2a2e38; color: var(--fg); }
       .sec-btn { background: #2a2e38; border-color: #2a2e38; color: var(--fg); }
       .empty { color: var(--muted); text-align: center; padding: 30px; }
@@ -121,6 +122,9 @@
         </div>
       </section>
 
+      <div class="row" style="margin: 10px 0">
+        <button type="button" id="batchDeleteBtn" class="sec-btn" disabled>删除选中 (0)</button>
+      </div>
       <section id="list"></section>
     </main>
 
@@ -173,6 +177,7 @@
       async function render(list) {
         listData = list
         const el = $('list')
+        updateBatchDelete()
         if (!list.length) {
           el.innerHTML = '<div class="empty">还没有书签，添加第一个吧。</div>'
           return
@@ -181,6 +186,7 @@
           .map(
             (b) => `
           <div class="bookmark">
+            <input type="checkbox" class="bk-check" data-id="${b.id}" aria-label="选择" />
             <a href="${escapeHtml(b.url)}" target="_blank" rel="noopener">${escapeHtml(b.url)}</a>
             <span class="title">${escapeHtml(b.title || '')}</span>
             <button class="edit-btn" data-id="${b.id}">编辑</button>
@@ -190,6 +196,19 @@
           </div>`,
           )
           .join('')
+      }
+
+      function selectedIds() {
+        return Array.from(document.querySelectorAll('.bk-check:checked')).map(
+          (c) => Number(c.dataset.id),
+        )
+      }
+
+      function updateBatchDelete() {
+        const n = selectedIds().length
+        const btn = $('batchDeleteBtn')
+        btn.textContent = `删除选中 (${n})`
+        btn.disabled = n === 0
       }
 
       function selectCollectionByName(name) {
@@ -302,6 +321,20 @@
       $('list').addEventListener('click', (e) => {
         const btn = e.target.closest('.edit-btn')
         if (btn) startEdit(Number(btn.dataset.id))
+      })
+      $('list').addEventListener('change', (e) => {
+        if (e.target.classList && e.target.classList.contains('bk-check')) updateBatchDelete()
+      })
+      $('batchDeleteBtn').addEventListener('click', async () => {
+        const ids = selectedIds()
+        if (!ids.length) return
+        if (!confirm(`确定删除选中的 ${ids.length} 条书签？此操作不可撤销。`)) return
+        const res = await api('/api/bookmarks/batch-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        })
+        if (res.ok) await loadBookmarks()
       })
       $('cancelEdit').addEventListener('click', cancelEdit)
 

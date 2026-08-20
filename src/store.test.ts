@@ -122,6 +122,27 @@ describe('updateBookmark', () => {
   })
 })
 
+describe('deleteBookmarks', () => {
+  it('批量删除多条并返回数量', () => {
+    const b1 = store.addBookmark({ url: 'a.com' })
+    const b2 = store.addBookmark({ url: 'b.com' })
+    const b3 = store.addBookmark({ url: 'c.com' })
+    expect(store.deleteBookmarks([b1.id, b2.id, b3.id])).toBe(3)
+    expect(store.listBookmarks()).toHaveLength(0)
+  })
+
+  it('含不存在 id 时跳过且不报错', () => {
+    const b1 = store.addBookmark({ url: 'a.com' })
+    const b2 = store.addBookmark({ url: 'b.com' })
+    expect(store.deleteBookmarks([b1.id, 9999])).toBe(1)
+    expect(store.listBookmarks().map((b) => b.id)).toEqual([b2.id])
+  })
+
+  it('空数组返回 0', () => {
+    expect(store.deleteBookmarks([])).toBe(0)
+  })
+})
+
 describe('export/import', () => {
   it('导出包含书签/集合/标签', () => {
     const c = store.createCollection('阅读')

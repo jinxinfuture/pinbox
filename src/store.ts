@@ -149,6 +149,18 @@ export function createStore(db: Database.Database) {
       return stmtDeleteBookmark.run(id).changes > 0
     },
 
+    deleteBookmarks(ids: number[]): number {
+      if (!ids.length) return 0
+      const del = db.transaction(() => {
+        let deleted = 0
+        for (const id of ids) {
+          if (stmtDeleteBookmark.run(id).changes > 0) deleted++
+        }
+        return deleted
+      })
+      return del()
+    },
+
     createCollection(name: string, parentId: number | null = null): Collection {
       const info = stmtInsertCollection.run(name, parentId)
       return { id: Number(info.lastInsertRowid), name, parent_id: parentId }
