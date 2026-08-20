@@ -88,3 +88,36 @@ describe('search', () => {
     expect(store.searchBookmarks({ collection: 'Fav' })).toHaveLength(1)
   })
 })
+
+describe('updateBookmark', () => {
+  it('更新字段', () => {
+    const b = store.addBookmark({ url: 'old.com', title: 'Old', description: 'd' })
+    const u = store.updateBookmark(b.id, { title: 'New', description: 'updated' })
+    expect(u?.title).toBe('New')
+    expect(u?.description).toBe('updated')
+    expect(u?.url).toBe('https://old.com')
+    expect(store.getBookmark(b.id)?.title).toBe('New')
+  })
+
+  it('重写标签（旧标签移除、新标签生效）', () => {
+    const b = store.addBookmark({ url: 't.com', tags: ['a', 'b'] })
+    const u = store.updateBookmark(b.id, { tags: ['b', 'c'] })
+    expect(u?.tags?.sort()).toEqual(['b', 'c'])
+    expect(store.searchBookmarks({ tag: 'a' })).toHaveLength(0)
+    expect(store.searchBookmarks({ tag: 'c' })).toHaveLength(1)
+  })
+
+  it('重写集合关联', () => {
+    const c1 = store.createCollection('C1')
+    const c2 = store.createCollection('C2')
+    const b = store.addBookmark({ url: 'u.com', collections: [c1.id] })
+    const u = store.updateBookmark(b.id, { collections: [c2.id] })
+    expect(u?.collections).toEqual(['C2'])
+    expect(store.searchBookmarks({ collection: 'C1' })).toHaveLength(0)
+    expect(store.searchBookmarks({ collection: 'C2' })).toHaveLength(1)
+  })
+
+  it('不存在的 id 返回 undefined', () => {
+    expect(store.updateBookmark(999, { title: 'x' })).toBeUndefined()
+  })
+})
